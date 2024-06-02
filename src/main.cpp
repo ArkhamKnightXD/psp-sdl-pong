@@ -6,32 +6,31 @@
 PSP_MODULE_INFO("SDL-Pong", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
  
-int exit_callback(int arg1, int arg2, void* common)
-{
+int exitCallback(int arg1, int arg2, void* common) {
+
     sceKernelExitGame();
     return 0;
 }
 
-int CallbackThread(SceSize args, void* argp)
-{
-    int cbid = sceKernelCreateCallback("Exit Callback", exit_callback, NULL);
+int callbackThread(SceSize args, void* argp) {
+
+    int cbid = sceKernelCreateCallback("Exit Callback", exitCallback, NULL);
     sceKernelRegisterExitCallback(cbid);
     sceKernelSleepThreadCB();
 
     return 0;
 }
 
-int SetupCallbacks(void)
-{
-    int thid = sceKernelCreateThread("update_thread", CallbackThread, 0x11, 0xFA0, 0, 0);
-    if (thid >= 0)
-    {
+int setupCallbacks(void) {
+
+    int thid = sceKernelCreateThread("update_thread", callbackThread, 0x11, 0xFA0, 0, 0);
+    if (thid >= 0) {
         sceKernelStartThread(thid, 0, 0);
     }
+
     return thid;
 }
 
-// Screen dimension constants
 enum {
   SCREEN_WIDTH  = 480,
   SCREEN_HEIGHT = 272
@@ -41,8 +40,8 @@ SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_GameController* controller = NULL;
 
-SDL_Rect player1 = {8, SCREEN_HEIGHT / 2 - 48, 8, 48};
-SDL_Rect player2 = {SCREEN_WIDTH - 16, SCREEN_HEIGHT / 2 - 48, 8, 48};
+SDL_Rect player1 = {8, SCREEN_HEIGHT / 2 - 42, 8, 42};
+SDL_Rect player2 = {SCREEN_WIDTH - 16, SCREEN_HEIGHT / 2 - 42, 8, 42};
 SDL_Rect ball = {SCREEN_WIDTH / 2 - 16, SCREEN_HEIGHT / 2 - 16, 12, 12};
 
 int playerSpeed = 400;
@@ -91,13 +90,11 @@ void update(float deltaTime) {
         player1.y += playerSpeed * deltaTime;
     }
 
-    if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_START))
-    {
+    if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_START)) {
         isAutoPlayMode = !isAutoPlayMode;
     }
 
-    if (isAutoPlayMode && ball.y < SCREEN_HEIGHT - player2.h)
-    {
+    if (isAutoPlayMode && ball.y < SCREEN_HEIGHT - player2.h) {
         player2.y = ball.y;
     }
 
@@ -109,8 +106,8 @@ void update(float deltaTime) {
         player2.y += playerSpeed * deltaTime;
     }
 
-    if (ball.x > SCREEN_WIDTH + ball.w || ball.x < -ball.w)
-    {
+    if (ball.x > SCREEN_WIDTH + ball.w || ball.x < -ball.w) {
+
         ball.x = SCREEN_WIDTH / 2 - ball.w;
         ball.y = SCREEN_HEIGHT / 2 - ball.h;
 
@@ -118,13 +115,11 @@ void update(float deltaTime) {
         ballVelocityY *= -1;
     }
 
-    if (ball.y < 0 || ball.y > SCREEN_HEIGHT - ball.h)
-    {
+    if (ball.y < 0 || ball.y > SCREEN_HEIGHT - ball.h) {
         ballVelocityY *= -1;
     }
 
-    if (hasCollision(player1, ball) || hasCollision(player2, ball))
-    {
+    if (hasCollision(player1, ball) || hasCollision(player2, ball)) {
         ballVelocityX *= -1;
     }
     
@@ -149,20 +144,9 @@ void render() {
     SDL_RenderPresent(renderer);
 }
 
-const int FRAME_RATE = 60; 
-
-void capFrameRate(Uint32 frameStartTime) {
-
-    Uint32 frameTime = SDL_GetTicks() - frameStartTime;
-    
-    if (frameTime < 1000 / FRAME_RATE) {
-        SDL_Delay(1000 / FRAME_RATE - frameTime);
-    }
-}
-
 int main()
 {
-    SetupCallbacks();
+    setupCallbacks();
     SDL_SetMainReady();
     pspDebugScreenInit();
 
@@ -196,8 +180,8 @@ int main()
     Uint32 currentFrameTime;
     float deltaTime;
 
-    while (true)
-    {
+    while (true) {
+
         currentFrameTime = SDL_GetTicks();
         deltaTime = (currentFrameTime - previousFrameTime) / 1000.0f;
         previousFrameTime = currentFrameTime;
@@ -205,7 +189,6 @@ int main()
         handleEvents();
         update(deltaTime);
         render();
-        // capFrameRate(currentFrameTime);
     }
 
     quitGame();
