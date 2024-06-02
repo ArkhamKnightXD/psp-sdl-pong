@@ -1,10 +1,9 @@
 #define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
 #include <pspdebug.h>
 #include <pspkernel.h>
 
-PSP_MODULE_INFO("SDL-Starter", 0, 1, 0);
+PSP_MODULE_INFO("SDL-Pong", 0, 1, 0);
 PSP_MAIN_THREAD_ATTR(THREAD_ATTR_USER | THREAD_ATTR_VFPU);
  
 int exit_callback(int arg1, int arg2, void* common)
@@ -41,27 +40,25 @@ enum {
 SDL_Window *window = NULL;
 SDL_Renderer *renderer = NULL;
 SDL_GameController* controller = NULL;
-SDL_Texture* sprite;
 
-bool shouldRenderSprite = false;
+SDL_Rect player1 = {8, SCREEN_HEIGHT / 2 - 48, 8, 48};
+SDL_Rect player2 = {SCREEN_WIDTH - 16, SCREEN_HEIGHT / 2 - 48, 8, 48};
+SDL_Rect ball = {SCREEN_WIDTH / 2 - 16, SCREEN_HEIGHT / 2 - 16, 12, 12};
 
-bool running = true;
+int playerSpeed = 400;
+int ballVelocityX = 200;
+int ballVelocityY = 200;
 
-SDL_Rect rectangle = {SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2, 24, 24};
+bool isAutoPlayMode = true;
 
-const int SPEED = 200; 
-const int FRAME_RATE = 60; 
-
-// Exit the game and clean up
 void quitGame() {
-
+    
     SDL_GameControllerClose(controller);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
     SDL_Quit();
 }
 
-// Function to handle events
 void handleEvents() {
 
     SDL_Event event;
@@ -76,61 +73,63 @@ void handleEvents() {
     }
 }
 
-void capFrameRate(Uint32 frameStartTime) {
+bool hasCollision(SDL_Rect player, SDL_Rect ball) {
 
-    Uint32 frameTime = SDL_GetTicks() - frameStartTime;
-    
-    if (frameTime < 1000 / FRAME_RATE) {
-        SDL_Delay(1000 / FRAME_RATE - frameTime);
-    }
+    return player.x < ball.x + ball.w && player.x + player.w > ball.x &&
+            player.y < ball.y + ball.h && player.y + player.h > ball.y;
 }
-
-SDL_Texture* LoadSprite(const char* file, SDL_Renderer* renderer)
-{
-    SDL_Texture* texture = IMG_LoadTexture(renderer, file);
-    if (texture == nullptr)
-    {
-        pspDebugScreenPrintf("Failed to create texture: %s\n", SDL_GetError());
-        sceKernelDelayThread(3 * 1000 * 1000);
-        return nullptr;
-    }
-    pspDebugScreenPrintf("Loaded image: %s\n", file);
-    sceKernelDelayThread(3 * 1000 * 1000);
-    return texture;
-}
-
-void RenderSprite(SDL_Texture* sprite, SDL_Renderer* renderer, int x, int y)
-{
-    SDL_Rect dest;
-    dest.x = x;
-    dest.y = y;
-    SDL_QueryTexture(sprite, NULL, NULL, &dest.w, &dest.h);
-    SDL_RenderCopy(renderer, sprite, NULL, &dest);
-}
-
+ 
 void update(float deltaTime) {
 
     SDL_GameControllerUpdate();
 
-    if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A)) {
-        shouldRenderSprite = !shouldRenderSprite;
+    if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_UP) && player1.y > 0) {
+        player1.y -= playerSpeed * deltaTime;
     }
 
-    if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_UP) && rectangle.y > 0) {
-        rectangle.y -= SPEED * deltaTime;
+    else if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN) && player1.y < SCREEN_HEIGHT - player1.h) {
+        player1.y += playerSpeed * deltaTime;
     }
 
-    else if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_DOWN) && rectangle.y < SCREEN_HEIGHT - rectangle.h) {
-        rectangle.y += SPEED * deltaTime;
+    if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_START))
+    {
+        isAutoPlayMode = !isAutoPlayMode;
     }
 
-    else if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_LEFT) && rectangle.x > 0) {
-        rectangle.x -= SPEED * deltaTime;
+    if (isAutoPlayMode && ball.y < SCREEN_HEIGHT - player2.h)
+    {
+        player2.y = ball.y;
     }
 
-    else if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_DPAD_RIGHT) && rectangle.x < SCREEN_WIDTH - rectangle.w) {
-        rectangle.x += SPEED * deltaTime;
+    if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_Y) && player2.y > 0) {
+        player2.y -= playerSpeed * deltaTime;
     }
+
+    if (SDL_GameControllerGetButton(controller, SDL_CONTROLLER_BUTTON_A) && player2.y < SCREEN_HEIGHT - player2.h) {
+        player2.y += playerSpeed * deltaTime;
+    }
+
+    if (ball.x > SCREEN_WIDTH + ball.w || ball.x < -ball.w)
+    {
+        ball.x = SCREEN_WIDTH / 2 - ball.w;
+        ball.y = SCREEN_HEIGHT / 2 - ball.h;
+
+        ballVelocityX *= -1;
+        ballVelocityY *= -1;
+    }
+
+    if (ball.y < 0 || ball.y > SCREEN_HEIGHT - ball.h)
+    {
+        ballVelocityY *= -1;
+    }
+
+    if (hasCollision(player1, ball) || hasCollision(player2, ball))
+    {
+        ballVelocityX *= -1;
+    }
+    
+    ball.x += ballVelocityX * deltaTime;
+    ball.y += ballVelocityY * deltaTime;
 }
 
 void render() {
@@ -140,14 +139,25 @@ void render() {
 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 
-    if(shouldRenderSprite) 
-    {
-        RenderSprite(sprite, renderer, 100, 100);
+    SDL_RenderFillRect(renderer, &player1);
+
+    SDL_RenderDrawLine(renderer, SCREEN_WIDTH / 2, 0, SCREEN_WIDTH / 2, SCREEN_HEIGHT);
+
+    SDL_RenderFillRect(renderer, &ball);
+    SDL_RenderFillRect(renderer, &player2);
+
+    SDL_RenderPresent(renderer);
+}
+
+const int FRAME_RATE = 60; 
+
+void capFrameRate(Uint32 frameStartTime) {
+
+    Uint32 frameTime = SDL_GetTicks() - frameStartTime;
+    
+    if (frameTime < 1000 / FRAME_RATE) {
+        SDL_Delay(1000 / FRAME_RATE - frameTime);
     }
-
-    SDL_RenderFillRect(renderer, &rectangle);
-
-    SDL_RenderPresent(renderer);  
 }
 
 int main()
@@ -160,7 +170,7 @@ int main()
         return -1;
     }
 
-    if ((window = SDL_CreateWindow("RedRectangle", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, 0)) == NULL) {
+    if ((window = SDL_CreateWindow("Pong", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, 0)) == NULL) {
         return -1;
     }
 
@@ -182,13 +192,11 @@ int main()
         }
     }
 
-    sprite = LoadSprite("sprites/sprite.png", renderer);
-
     Uint32 previousFrameTime = SDL_GetTicks();
     Uint32 currentFrameTime;
     float deltaTime;
 
-    while (running)
+    while (true)
     {
         currentFrameTime = SDL_GetTicks();
         deltaTime = (currentFrameTime - previousFrameTime) / 1000.0f;
